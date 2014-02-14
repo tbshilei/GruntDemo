@@ -1,0 +1,87 @@
+/*
+ * Copyright (c) 2012 左莫
+ * Licensed under the MIT license.
+ */
+
+module.exports = function(grunt) {
+    var task = grunt.task;
+    var file = grunt.file;
+    var config = grunt.config;
+    // external dependencies
+    var path = require('path');
+	var fs = require('fs');
+
+    // ==========================================================================
+    // TASKS
+    // ==========================================================================
+    grunt.registerMultiTask('componentjs', 'Compile Component JS files.', function() {
+        var concatConfig = {
+            options: {
+                separator: '\n'
+            }
+        };
+        var uglifyConfig = {
+            options: {
+                beautify: {
+                    ascii_only: true
+                }
+            }
+        };
+
+        function foo(srcPath, destPath) {
+            var srcFile = path.join(srcPath, 'index.js');
+            var destFile = path.join(destPath, 'index.js');
+            if (fs.existsSync(srcFile)) {
+                var arr = [srcFile];
+                var tempArr = fs.readdirSync(srcPath);
+                tempArr.forEach(function(f) {
+                    if (file.isDir(srcPath, f)) {
+                        //递归查找所有配置
+                        foo(path.join(srcPath, f), path.join(destPath, f));
+                    } else if (path.extname(f) == '.js' && path.basename(f) != 'index.js') {
+                        arr.push(srcPath + f);
+                    }
+                });
+
+                if (arr.length > 1) {
+                    concatConfig[srcPath] = {
+                        src: arr,
+                        dest: destFile
+                    }
+                } else {
+                    file.copy(srcFile, destFile)
+                }
+
+                uglifyConfig[srcPath] = {
+                    files: {}
+                };
+
+                uglifyConfig[srcPath].files[path.join(destPath, 'index-min.js')] = [destFile];
+            }
+        }
+		
+        this.files.forEach(function(f) {
+			console.log(f);
+			/**/
+            var src = f.src[0];
+            var dest = f.dest;
+            var files = fs.readdirSync(src);
+
+            files.forEach(function(p) {
+                var srcPath = path.join(src, p),
+                    destPath = path.join(dest, p);
+                foo(srcPath, destPath);
+            });
+            config('concat', concatConfig);
+            task.run('concat');
+
+            //对tmpl的获取和替换
+            config('componenttmpl', uglifyConfig)
+            task.run('componenttmpl');
+
+            config('uglify', uglifyConfig);
+            task.run('uglify');
+			
+        });
+    });
+};
